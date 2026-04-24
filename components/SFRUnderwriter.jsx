@@ -1417,14 +1417,19 @@ export default function SFRUnderwriter() {
     try {
       const res = await fetch("/api/underwrite", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: MODEL, max_tokens: 4000, system: SYSTEM_PROMPT,
+        body: JSON.stringify({ model: MODEL, max_tokens: 16000, system: SYSTEM_PROMPT,
           tools: [{ type: "web_search_20250305", name: "web_search" }],
           messages: [{ role: "user", content: `Fully underwrite this SFR: ${input.trim()}\n\nSearch for all data. Return only the JSON.` }]
         })
       });
       const data = await res.json();
+      if (data.error) throw new Error(data.error + (data.detail ? ": " + data.detail : ""));
       const raw = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
       const s = raw.indexOf("{"), e2 = raw.lastIndexOf("}");
+      if (s < 0 || e2 < 0 || e2 < s) {
+        const stop = data.stop_reason ? " (stop_reason: " + data.stop_reason + ")" : "";
+        throw new Error("Model did not return a complete JSON report" + stop + ". Try again or use a Zillow link.");
+      }
       setRawReport(JSON.parse(raw.slice(s, e2 + 1)));
     } catch (err) { setError("Error: " + err.message); }
     finally { clearInterval(iv); setLoading(false); setStage(""); }
