@@ -94,6 +94,30 @@ function evaluateCriteria(fin, rental, market, criteria) {
   ];
 }
 
+// ─── Max Purchase Price Solver ──────────────────────────────────────────────
+// For each price-dependent criterion, find the highest purchase price at which
+// the test still passes. Bisects over recalcFinancials using a synthetic price.
+// Rent, expenses, down %, rate, and term are held constant.
+function recalcAtPrice(r, expOvr, loan, price) {
+  if (!r) return null;
+  const cloned = { ...r, financials: { ...(r.financials || {}), purchasePrice: price } };
+  return recalcFinancials(cloned, expOvr, loan);
+}
+function solveMaxPrice(testFn, r, expOvr, loan, opts = {}) {
+  if (!r) return null;
+  const { minPrice = 1000, maxPrice = 10000000, iterations = 32 } = opts;
+  const finLo = recalcAtPrice(r, expOvr, loan, minPrice);
+  if (!testFn(finLo)) return null;
+  const finHi = recalcAtPrice(r, expOvr, loan, maxPrice);
+  if (testFn(finHi)) return maxPrice;
+  let lo = minPrice, hi = maxPrice;
+  for (let i = 0; i < iterations; i++) {
+    const mid = (lo + hi) / 2;
+    if (testFn(recalcAtPrice(r, expOvr, loan, mid))) lo = mid; else hi = mid;
+  }
+  return Math.floor(lo);
+}
+
 // ─── DSCR Loan Qualification Engine ──────────────────────────────────────────
 // Lenders use: DSCR = Gross Rent ÷ PITIA (not NOI/debt service)
 // PITIA = Principal & Interest + Taxes + Insurance + HOA (operating expenses excluded)
@@ -1402,6 +1426,23 @@ export default function SFRUnderwriter() {
   const pf  = useMemo(() => evaluateCriteria(fin, rawReport?.rental, rawReport?.market, criteria), [fin, rawReport, criteria]);
   const derivations = useMemo(() => buildDerivations(rawReport, fin, loan), [rawReport, fin, loan]);
   const dscrQual = useMemo(() => buildDSCRQualification(fin, rawReport, dscrCriteria), [fin, rawReport, dscrCriteria]);
+  const maxPrices = useMemo(() => {
+    if (!rawReport || !fin) return null;
+    const defs = [
+      { label: "Monthly Cash Flow", test: f => !!f && f.monthlyCashFlow     >= criteria.minMonthlyCashFlow, threshold: `${'≥'} ${fmt(criteria.minMonthlyCashFlow)}/mo` },
+      { label: "Cap Rate",          test: f => !!f && f.capRate             >= criteria.minCapRate,         threshold: `${'≥'} ${criteria.minCapRate}%` },
+      { label: "Cash-on-Cash",      test: f => !!f && f.cashOnCash          >= criteria.minCashOnCash,      threshold: `${'≥'} ${criteria.minCashOnCash}%` },
+      { label: "DSCR",              test: f => !!f && f.dscr                >= criteria.minDSCR,            threshold: `${'≥'} ${criteria.minDSCR}` },
+      { label: "GRM",               test: f => !!f && f.grm                 <= criteria.maxGRM,             threshold: `${'≤'} ${criteria.maxGRM}` },
+      { label: "Break-Even Occ.",   test: f => !!f && f.breakEvenOccupancy  <= criteria.maxBreakEven,       threshold: `${'≤'} ${criteria.maxBreakEven}%` },
+    ];
+    return defs.map(d => ({
+      label: d.label,
+      threshold: d.threshold,
+      maxPrice: solveMaxPrice(d.test, rawReport, expOvr, loan),
+      currentPass: d.test(fin),
+    }));
+  }, [rawReport, fin, expOvr, loan, criteria]);
   const passCount = pf.filter(c => c.pass).length;
   const hasOvr = Object.values(expOvr).some(v => v !== null);
   const origExp = rawReport?.financials?.monthlyExpenses || {};
@@ -1664,6 +1705,47 @@ export default function SFRUnderwriter() {
               </div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.22)", fontFamily: "'Space Mono',monospace" }}>{passCount}/{pf.length} criteria met · click any card to see derivation · adjust thresholds in ⚙ above</div>
             </Section>
+
+            {/* Max Purchase Price by Test */}
+            {maxPrices && (
+              <Section title="Max Purchase Price by Test" accent="#00ccff">
+                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", marginBottom: 14, lineHeight: 1.55 }}>
+                  The highest purchase price at which each criterion still passes — holding rent, expenses, down %, rate, and term constant. Updates live as you adjust criteria or loan settings.
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 10 }}>
+                  {maxPrices.map(m => {
+                    const impossible = m.maxPrice === null;
+                    const delta = impossible ? null : m.maxPrice - fin.purchasePrice;
+                    const above = delta !== null && delta >= 0;
+                    const bg = impossible ? "rgba(255,68,68,0.05)" : above ? "rgba(0,255,136,0.05)" : "rgba(255,204,0,0.05)";
+                    const bd = impossible ? "rgba(255,68,68,0.18)" : above ? "rgba(0,255,136,0.18)" : "rgba(255,204,0,0.18)";
+                    const lc = impossible ? "#ff6666" : above ? "#00ff88" : "#ffcc00";
+                    return (
+                      <div key={m.label} style={{ padding: "12px 14px", borderRadius: 10, background: bg, border: `1px solid ${bd}` }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: lc, marginBottom: 2 }}>{m.label}</div>
+                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", fontFamily: "'Space Mono',monospace", marginBottom: 8 }}>threshold: {m.threshold}</div>
+                        <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "'Space Mono',monospace", color: impossible ? "#ff6666" : "#fff" }}>
+                          {impossible ? "— impossible —" : fmt(m.maxPrice)}
+                        </div>
+                        {!impossible && (
+                          <div style={{ fontSize: 10, color: above ? "#00ff88" : "#ffcc00", fontFamily: "'Space Mono',monospace", marginTop: 3 }}>
+                            {above ? "+" : ""}{fmt(delta)} vs asking
+                          </div>
+                        )}
+                        {impossible && (
+                          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 3 }}>
+                            rent/expenses can't satisfy this criterion at any price
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.22)", fontFamily: "'Space Mono',monospace", marginTop: 10 }}>
+                  1yr Appreciation & Vacancy Rate are market-data tests — not price-dependent, so no max price is shown.
+                </div>
+              </Section>
+            )}
 
             {/* DSCR Loan Qualification */}
             <DSCRLoanSection qual={dscrQual} onShowDerivation={setModal} />
