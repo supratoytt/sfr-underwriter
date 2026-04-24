@@ -1431,7 +1431,20 @@ export default function SFRUnderwriter() {
         throw new Error("Model did not return a complete JSON report" + stop + ". Try again or use a Zillow link.");
       }
       setRawReport(JSON.parse(raw.slice(s, e2 + 1)));
-    } catch (err) { setError("Error: " + err.message); }
+    } catch (err) {
+        const m = err.message || "";
+        let friendly;
+        if (m.includes("rate_limit_error") || m.includes("429")) {
+          friendly = "Rate limit reached on the Anthropic API (30,000 input tokens/min on Tier 1). Please wait ~60 seconds and try again, or upgrade your API tier for higher limits.";
+        } else if (m.includes("overloaded_error") || m.includes("529")) {
+          friendly = "Anthropic is temporarily overloaded. Please try again in a few seconds.";
+        } else if (m.includes("invalid_api_key") || m.includes("authentication_error") || m.includes("401")) {
+          friendly = "API key is missing or invalid. Set ANTHROPIC_API_KEY in your Vercel environment variables.";
+        } else {
+          friendly = m;
+        }
+        setError(friendly);
+      }
     finally { clearInterval(iv); setLoading(false); setStage(""); }
   }
 
