@@ -170,7 +170,7 @@ function buildDSCRQualification(fin, r, dc) {
     { label: "Reserves Required",   value: fmt(reservesNeeded),            pass: true,                    detail: `${dc.reservesMonths} mo × ${fmt(pitia)} PITIA — must be liquid at closing` },
   ];
 
-  return { lenderDscr, pitia, rent, ltv, propValue, loanAmt, reservesNeeded, tiers: tiersWithChecks, highestTier, universalChecks, dc };
+  return { lenderDscr, pitia, rent, ltv, propValue, loanAmt, reservesNeeded, tiers: tiersWithChecks, highestTier, universalChecks, dc, pi, taxes, insurance, hoa };
 }
 
 // ─── Derivation Builder ───────────────────────────────────────────────────────
@@ -1091,7 +1091,7 @@ function DSCRLoanSection({ qual, onShowDerivation }) {
   const [expanded, setExpanded] = useState(true);
   if (!qual) return null;
 
-  const { lenderDscr, pitia, rent, ltv, reservesNeeded, tiers, highestTier, universalChecks } = qual;
+  const { lenderDscr, pitia, rent, ltv, reservesNeeded, tiers, highestTier, universalChecks, pi, taxes, insurance, hoa } = qual;
 
   const overallColor = highestTier?.id === "A" ? "#00ff88" : highestTier?.id === "B" ? "#ffcc00" : highestTier?.id === "C" ? "#ff8844" : "#ff4444";
   const overallLabel = highestTier ? `QUALIFIES — ${highestTier.label}` : "DOES NOT QUALIFY";
@@ -1218,10 +1218,10 @@ function DSCRLoanSection({ qual, onShowDerivation }) {
                 Lenders use PITIA — not full NOI — to calculate DSCR. Management, maintenance, vacancy & CapEx are excluded from lender DSCR.
               </div>
               {[
-                ["Principal & Interest (P&I)", fmt(pitia - n(fin?.monthlyExpenses?.taxes) - n(fin?.monthlyExpenses?.insurance) - n(fin?.monthlyExpenses?.hoa))],
-                ["Property Taxes",             fmt(fin?.monthlyExpenses?.taxes)],
-                ["Insurance",                  fmt(fin?.monthlyExpenses?.insurance)],
-                ["HOA",                        fmt(fin?.monthlyExpenses?.hoa)],
+                ["Principal & Interest (P&I)", fmt(pi)],
+              ["Property Taxes",             fmt(taxes)],
+              ["Insurance",                  fmt(insurance)],
+              ["HOA",                        fmt(hoa)],
               ].map(([l, v]) => (
                 <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", fontSize: 12 }}>
                   <span style={{ color: "rgba(255,255,255,0.45)" }}>{l}</span>
