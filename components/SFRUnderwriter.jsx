@@ -1420,8 +1420,25 @@ NEVER report market.daysOnMarket > 0 alongside valuation.listPrice = 0 — that 
 
 If the user provided a Zillow URL in their message, that exact page contains the asking price as a large dollar amount near the top. Extract that dollar amount into valuation.listPrice.
 
+CRITICAL — PROPERTY TAX VERIFICATION:
+Property tax figures shown on Zillow are often INACCURATE — listing agents sometimes input wrong values, or Zillow displays a homestead-exempt figure that an investor (who would not get the exemption) cannot rely on. You MUST verify property tax from the authoritative county/municipal source before using a number.
+
+VERIFICATION PROCEDURE:
+1. From the property's city and state, identify the county or municipality the property is in.
+2. Use web_search to locate the official county property appraiser, tax assessor, or tax collector site (search e.g. "[county name] [state] property appraiser" or "[county] tax collector"). Many counties expose individual parcel records by address or parcel ID.
+3. Use web_fetch to retrieve the actual tax record for THIS specific property (search the official site by address; some counties provide a direct URL pattern).
+4. Use the figure from the county source as the authoritative annual property tax.
+
+OUTPUT FIELDS:
+- valuation.annualTax = verified annual property tax in dollars (the gross amount before any exemptions, since investment owners typically don't qualify for homestead/senior exemptions)
+- valuation.taxSource = "county" if you successfully retrieved a figure from the county/municipal authority; "zillow" if you fell back to Zillow's listed tax because the county source was inaccessible; "estimate" if you had to estimate from a local effective tax rate.
+- valuation.taxYear = the tax year of the most recent record you used (e.g., 2025 for current-year bills, 2024 for last assessed year).
+- financials.monthlyExpenses.taxes MUST equal valuation.annualTax / 12. The monthly figure flowing into all underwriting calculations must be derived from the verified annual amount.
+
+If county records are inaccessible (CAPTCHA, search forms requiring interactive lookup, login walls, or repeated failures), fall back to Zillow's number and set taxSource="zillow". Never silently use a bad number — always tag the source.
+
 Respond ONLY with a valid JSON object (no markdown, no backticks):
-{"property":{"address":"","city":"","state":"","zip":"","beds":0,"baths":0,"sqft":0,"lotSqft":0,"yearBuilt":0,"garage":"","pool":false,"hoa":0,"propertyType":""},"valuation":{"estimatedValue":0,"listPrice":0,"lastSalePrice":0,"lastSaleDate":"","pricePerSqft":0,"priceHistory":[]},"rental":{"estimatedMonthlyRent":0,"rentPerSqft":0,"rentRange":{"low":0,"high":0},"vacancyRate":0,"averageDaysToRent":0},"neighborhood":{"walkScore":0,"transitScore":0,"bikeScore":0,"schoolRating":0,"crimeIndex":"","floodZone":"","medianHouseholdIncome":0,"employmentRate":0},"market":{"appreciation1yr":0,"appreciation3yr":0,"appreciation5yr":0,"daysOnMarket":0,"rentGrowth1yr":0,"marketTrend":""},"financials":{"purchasePrice":0,"downPayment":0,"loanAmount":0,"monthlyMortgage":0,"monthlyRent":0,"monthlyExpenses":{"taxes":0,"insurance":0,"maintenance":0,"management":0,"vacancy":0,"capex":0,"hoa":0,"total":0},"monthlyNOI":0,"annualNOI":0,"monthlyCashFlow":0,"annualCashFlow":0,"capRate":0,"cashOnCash":0,"grm":0,"dscr":0,"breakEvenOccupancy":0},"rating":{"score":0,"recommendation":"","summary":""},"risks":[],"opportunities":[],"dataSources":[],"analysisDate":"","disclaimer":""}`;
+{"property":{"address":"","city":"","state":"","zip":"","beds":0,"baths":0,"sqft":0,"lotSqft":0,"yearBuilt":0,"garage":"","pool":false,"hoa":0,"propertyType":""},"valuation":{"estimatedValue":0,"listPrice":0,"lastSalePrice":0,"lastSaleDate":"","pricePerSqft":0,"priceHistory":[],"annualTax":0,"taxSource":"","taxYear":0},"rental":{"estimatedMonthlyRent":0,"rentPerSqft":0,"rentRange":{"low":0,"high":0},"vacancyRate":0,"averageDaysToRent":0},"neighborhood":{"walkScore":0,"transitScore":0,"bikeScore":0,"schoolRating":0,"crimeIndex":"","floodZone":"","medianHouseholdIncome":0,"employmentRate":0},"market":{"appreciation1yr":0,"appreciation3yr":0,"appreciation5yr":0,"daysOnMarket":0,"rentGrowth1yr":0,"marketTrend":""},"financials":{"purchasePrice":0,"downPayment":0,"loanAmount":0,"monthlyMortgage":0,"monthlyRent":0,"monthlyExpenses":{"taxes":0,"insurance":0,"maintenance":0,"management":0,"vacancy":0,"capex":0,"hoa":0,"total":0},"monthlyNOI":0,"annualNOI":0,"monthlyCashFlow":0,"annualCashFlow":0,"capRate":0,"cashOnCash":0,"grm":0,"dscr":0,"breakEvenOccupancy":0},"rating":{"score":0,"recommendation":"","summary":""},"risks":[],"opportunities":[],"dataSources":[],"analysisDate":"","disclaimer":""}`;
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function SFRUnderwriter() {
@@ -1702,7 +1719,7 @@ export default function SFRUnderwriter() {
                 {[
                   { label: "Asking Price",   value: r.valuation?.listPrice == null ? "Re-run analysis" : r.valuation.listPrice > 0 ? fmt(r.valuation.listPrice) : (r.market?.daysOnMarket > 0 && r.valuation?.estimatedValue > 0) ? `~${fmt(r.valuation.estimatedValue)}` : (r.market?.daysOnMarket > 0 ? "Listed — re-run" : "Off-market"),  color: r.valuation?.listPrice > 0 ? "#00ff88" : (r.market?.daysOnMarket > 0 ? "#ff8844" : "#00ff88") },
                   { label: "Days on Market", value: r.market?.daysOnMarket > 0 ? `${r.market.daysOnMarket} days` : "—",                                                color: "#00ccff" },
-                  { label: "Property Taxes", value: fin?.monthlyExpenses?.taxes > 0     ? `${fmt(fin.monthlyExpenses.taxes * 12)}/yr`     : "N/A",                     color: "#ffcc00" },
+                  { label: "Property Taxes", value: fin?.monthlyExpenses?.taxes > 0 ? `${fmt(fin.monthlyExpenses.taxes * 12)}/yr${r.valuation?.taxSource === "county" ? " ✓" : ""}` : "N/A",                     color: r.valuation?.taxSource === "county" ? "#00ff88" : (r.valuation?.taxSource === "estimate" ? "#ff8844" : "#ffcc00") },
                   { label: "HOA",            value: fin?.monthlyExpenses?.hoa > 0       ? `${fmt(fin.monthlyExpenses.hoa)}/mo`            : "None",                    color: "#bb88ff" },
                   { label: "Est. Insurance", value: fin?.monthlyExpenses?.insurance > 0 ? `${fmt(fin.monthlyExpenses.insurance * 12)}/yr` : "N/A",                     color: "#ff8844" },
                 ].map(s => (
