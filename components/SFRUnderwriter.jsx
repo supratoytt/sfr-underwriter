@@ -1403,7 +1403,15 @@ Search for and include:
 7. Investment Rating 1-10, recommendation, summary
 8. Risks & Opportunities (4-6 each)
 
-IMPORTANT: For valuation.listPrice — search the current Zillow/Redfin/MLS listing for this property. If the property is currently listed for sale, set listPrice to the active asking price. If the property is NOT currently listed (off-market, sold, expired, withdrawn), set listPrice to 0. Do not confuse this with estimatedValue (AVM) or lastSalePrice (historical sale price). The asking price is the dollar amount the seller is currently asking buyers to pay.
+CRITICAL — ASKING PRICE / LISTING STATUS CONSISTENCY:
+On Zillow, Redfin, or MLS listings, the asking price appears prominently near the top — often labeled "Listed for", or shown as a large bold dollar amount above the address. You MUST extract this exact number into valuation.listPrice. Three valuation fields are distinct and must NOT be confused: estimatedValue (Zestimate / AVM, an algorithmic estimate), listPrice (the seller's current asking price on the active listing), and lastSalePrice (the historical price from the most recent prior sale).
+
+The data in your response must be self-consistent. Either both of these are true:
+  (a) Property IS currently for sale → valuation.listPrice > 0 AND market.daysOnMarket > 0
+Or both are true:
+  (b) Property is NOT currently for sale → valuation.listPrice = 0 AND market.daysOnMarket = 0
+
+NEVER report market.daysOnMarket > 0 alongside valuation.listPrice = 0 — that is a contradiction. If you can determine days on market, the listing exists and the asking price is on the same page; you must capture both.
 
 Respond ONLY with a valid JSON object (no markdown, no backticks):
 {"property":{"address":"","city":"","state":"","zip":"","beds":0,"baths":0,"sqft":0,"lotSqft":0,"yearBuilt":0,"garage":"","pool":false,"hoa":0,"propertyType":""},"valuation":{"estimatedValue":0,"listPrice":0,"lastSalePrice":0,"lastSaleDate":"","pricePerSqft":0,"priceHistory":[]},"rental":{"estimatedMonthlyRent":0,"rentPerSqft":0,"rentRange":{"low":0,"high":0},"vacancyRate":0,"averageDaysToRent":0},"neighborhood":{"walkScore":0,"transitScore":0,"bikeScore":0,"schoolRating":0,"crimeIndex":"","floodZone":"","medianHouseholdIncome":0,"employmentRate":0},"market":{"appreciation1yr":0,"appreciation3yr":0,"appreciation5yr":0,"daysOnMarket":0,"rentGrowth1yr":0,"marketTrend":""},"financials":{"purchasePrice":0,"downPayment":0,"loanAmount":0,"monthlyMortgage":0,"monthlyRent":0,"monthlyExpenses":{"taxes":0,"insurance":0,"maintenance":0,"management":0,"vacancy":0,"capex":0,"hoa":0,"total":0},"monthlyNOI":0,"annualNOI":0,"monthlyCashFlow":0,"annualCashFlow":0,"capRate":0,"cashOnCash":0,"grm":0,"dscr":0,"breakEvenOccupancy":0},"rating":{"score":0,"recommendation":"","summary":""},"risks":[],"opportunities":[],"dataSources":[],"analysisDate":"","disclaimer":""}`;
@@ -1680,7 +1688,7 @@ export default function SFRUnderwriter() {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 12, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                 {[
-                  { label: "Asking Price",   value: r.valuation?.listPrice == null ? "Re-run analysis" : r.valuation.listPrice > 0 ? fmt(r.valuation.listPrice) : "Off-market",  color: "#00ff88" },
+                  { label: "Asking Price",   value: r.valuation?.listPrice == null ? "Re-run analysis" : r.valuation.listPrice > 0 ? fmt(r.valuation.listPrice) : (r.market?.daysOnMarket > 0 ? "Listed — re-run" : "Off-market"),  color: "#00ff88" },
                   { label: "Days on Market", value: r.market?.daysOnMarket > 0 ? `${r.market.daysOnMarket} days` : "—",                                                color: "#00ccff" },
                   { label: "Property Taxes", value: fin?.monthlyExpenses?.taxes > 0     ? `${fmt(fin.monthlyExpenses.taxes * 12)}/yr`     : "N/A",                     color: "#ffcc00" },
                   { label: "HOA",            value: fin?.monthlyExpenses?.hoa > 0       ? `${fmt(fin.monthlyExpenses.hoa)}/mo`            : "None",                    color: "#bb88ff" },
