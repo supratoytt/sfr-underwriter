@@ -1404,7 +1404,7 @@ Search for and include:
 8. Risks & Opportunities (4-6 each)
 
 Respond ONLY with a valid JSON object (no markdown, no backticks):
-{"property":{"address":"","city":"","state":"","zip":"","beds":0,"baths":0,"sqft":0,"lotSqft":0,"yearBuilt":0,"garage":"","pool":false,"hoa":0,"propertyType":""},"valuation":{"estimatedValue":0,"lastSalePrice":0,"lastSaleDate":"","pricePerSqft":0,"priceHistory":[]},"rental":{"estimatedMonthlyRent":0,"rentPerSqft":0,"rentRange":{"low":0,"high":0},"vacancyRate":0,"averageDaysToRent":0},"neighborhood":{"walkScore":0,"transitScore":0,"bikeScore":0,"schoolRating":0,"crimeIndex":"","floodZone":"","medianHouseholdIncome":0,"employmentRate":0},"market":{"appreciation1yr":0,"appreciation3yr":0,"appreciation5yr":0,"daysOnMarket":0,"rentGrowth1yr":0,"marketTrend":""},"financials":{"purchasePrice":0,"downPayment":0,"loanAmount":0,"monthlyMortgage":0,"monthlyRent":0,"monthlyExpenses":{"taxes":0,"insurance":0,"maintenance":0,"management":0,"vacancy":0,"capex":0,"hoa":0,"total":0},"monthlyNOI":0,"annualNOI":0,"monthlyCashFlow":0,"annualCashFlow":0,"capRate":0,"cashOnCash":0,"grm":0,"dscr":0,"breakEvenOccupancy":0},"rating":{"score":0,"recommendation":"","summary":""},"risks":[],"opportunities":[],"dataSources":[],"analysisDate":"","disclaimer":""}`;
+{"property":{"address":"","city":"","state":"","zip":"","beds":0,"baths":0,"sqft":0,"lotSqft":0,"yearBuilt":0,"garage":"","pool":false,"hoa":0,"propertyType":""},"valuation":{"estimatedValue":0,"listPrice":0,"lastSalePrice":0,"lastSaleDate":"","pricePerSqft":0,"priceHistory":[]},"rental":{"estimatedMonthlyRent":0,"rentPerSqft":0,"rentRange":{"low":0,"high":0},"vacancyRate":0,"averageDaysToRent":0},"neighborhood":{"walkScore":0,"transitScore":0,"bikeScore":0,"schoolRating":0,"crimeIndex":"","floodZone":"","medianHouseholdIncome":0,"employmentRate":0},"market":{"appreciation1yr":0,"appreciation3yr":0,"appreciation5yr":0,"daysOnMarket":0,"rentGrowth1yr":0,"marketTrend":""},"financials":{"purchasePrice":0,"downPayment":0,"loanAmount":0,"monthlyMortgage":0,"monthlyRent":0,"monthlyExpenses":{"taxes":0,"insurance":0,"maintenance":0,"management":0,"vacancy":0,"capex":0,"hoa":0,"total":0},"monthlyNOI":0,"annualNOI":0,"monthlyCashFlow":0,"annualCashFlow":0,"capRate":0,"cashOnCash":0,"grm":0,"dscr":0,"breakEvenOccupancy":0},"rating":{"score":0,"recommendation":"","summary":""},"risks":[],"opportunities":[],"dataSources":[],"analysisDate":"","disclaimer":""}`;
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function SFRUnderwriter() {
@@ -1667,13 +1667,29 @@ export default function SFRUnderwriter() {
         {r && fin && (
           <div style={{ animation: "fadeIn 0.4s ease" }}>
             {/* Banner */}
-            <div style={{ background: "linear-gradient(135deg,rgba(0,255,136,0.07),rgba(0,204,255,0.04))", border: "1px solid rgba(0,255,136,0.14)", borderRadius: 16, padding: "20px 24px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-              <div>
-                <div style={{ fontSize: 11, color: "#00ff88", fontFamily: "'Space Mono',monospace", letterSpacing: "0.1em", marginBottom: 4 }}>SUBJECT PROPERTY</div>
-                <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.01em" }}>{r.property?.address}</div>
-                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, marginTop: 3 }}>{r.property?.city}, {r.property?.state} {r.property?.zip} · {r.property?.beds}bd/{r.property?.baths}ba · {r.property?.sqft?.toLocaleString()} sqft · Built {r.property?.yearBuilt}</div>
+            <div style={{ background: "linear-gradient(135deg,rgba(0,255,136,0.07),rgba(0,204,255,0.04))", border: "1px solid rgba(0,255,136,0.14)", borderRadius: 16, padding: "20px 24px", marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: "#00ff88", fontFamily: "'Space Mono',monospace", letterSpacing: "0.1em", marginBottom: 4 }}>SUBJECT PROPERTY</div>
+                  <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.01em" }}>{r.property?.address}</div>
+                  <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, marginTop: 3 }}>{r.property?.city}, {r.property?.state} {r.property?.zip} · {r.property?.beds}bd/{r.property?.baths}ba · {r.property?.sqft?.toLocaleString()} sqft · Built {r.property?.yearBuilt}</div>
+                </div>
+                <ScoreMeter passFail={pf} />
               </div>
-              <ScoreMeter passFail={pf} />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 12, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                {[
+                  { label: "Asking Price",   value: r.valuation?.listPrice > 0 ? fmt(r.valuation.listPrice) : "Off-market",                                              color: "#00ff88" },
+                  { label: "Days on Market", value: r.market?.daysOnMarket > 0 ? `${r.market.daysOnMarket} days` : "—",                                                color: "#00ccff" },
+                  { label: "Property Taxes", value: fin?.monthlyExpenses?.taxes > 0     ? `${fmt(fin.monthlyExpenses.taxes * 12)}/yr`     : "N/A",                     color: "#ffcc00" },
+                  { label: "HOA",            value: fin?.monthlyExpenses?.hoa > 0       ? `${fmt(fin.monthlyExpenses.hoa)}/mo`            : "None",                    color: "#bb88ff" },
+                  { label: "Est. Insurance", value: fin?.monthlyExpenses?.insurance > 0 ? `${fmt(fin.monthlyExpenses.insurance * 12)}/yr` : "N/A",                     color: "#ff8844" },
+                ].map(s => (
+                  <div key={s.label}>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontFamily: "'Space Mono',monospace", letterSpacing: "0.06em", marginBottom: 3 }}>{s.label}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Space Mono',monospace", color: s.color }}>{s.value}</div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Summary */}
