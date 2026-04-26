@@ -1476,8 +1476,11 @@ export default function SFRUnderwriter() {
       const res = await fetch("/api/underwrite", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: MODEL, max_tokens: 16000, system: SYSTEM_PROMPT,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          messages: [{ role: "user", content: `Fully underwrite this SFR: ${input.trim()}\n\nSearch for all data. Return only the JSON.` }]
+          tools: [
+            { type: "web_fetch_20250910", name: "web_fetch" },
+            { type: "web_search_20250305", name: "web_search" },
+          ],
+          messages: [{ role: "user", content: `Fully underwrite this SFR: ${input.trim()}\n\nTOOL USAGE: If the input above is a URL (Zillow, Redfin, etc.), use web_fetch FIRST to directly retrieve that page — that returns the LIVE current asking price and days on market without indexing lag. If the input is only an address, use web_search to locate the listing URL, then web_fetch the listing page directly. Always prefer web_fetch over web_search for the listing page itself.\n\nReturn only the JSON.` }]
         })
       });
       const data = await res.json();
