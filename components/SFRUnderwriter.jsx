@@ -1435,6 +1435,7 @@ export default function SFRUnderwriter() {
   const [loan, setLoan] = useState(DEFAULT_LOAN);
   const [dscrCriteria, setDscrCriteria] = useState(DEFAULT_DSCR_CRITERIA);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [rawResponse, setRawResponse] = useState(null);
   const [tab, setTab] = useState("criteria");
   const [modal, setModal] = useState(null);
   const inputRef = useRef();
@@ -1468,7 +1469,7 @@ export default function SFRUnderwriter() {
 
   async function runUnderwriting() {
     if (!input.trim()) return;
-    setLoading(true); setError(""); setRawReport(null); setExpOvr(DEFAULT_EXPENSE_OVERRIDES); setModal(null);
+    setLoading(true); setError(""); setRawReport(null); setRawResponse(null); setExpOvr(DEFAULT_EXPENSE_OVERRIDES); setModal(null);
     const stages = ["Locating property data...","Pulling valuation & comps...","Analyzing rental market...","Scoring neighborhood...","Running financial models...","Generating report..."];
     let si = 0; setStage(stages[0]);
     const iv = setInterval(() => { si = (si + 1) % stages.length; setStage(stages[si]); }, 3500);
@@ -1484,6 +1485,7 @@ export default function SFRUnderwriter() {
         })
       });
       const data = await res.json();
+      setRawResponse(data);
       if (data.error) throw new Error(data.error + (data.detail ? ": " + data.detail : ""));
       const raw = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
       const s = raw.indexOf("{"), e2 = raw.lastIndexOf("}");
@@ -1889,6 +1891,30 @@ export default function SFRUnderwriter() {
               <strong style={{ color: "rgba(255,255,255,0.38)" }}>Analysis Date:</strong> {r.analysisDate || new Date().toLocaleDateString()}<br />
               {r.disclaimer || "For informational purposes only. Not financial or investment advice. Verify all data independently before making investment decisions."}
             </div>
+            {rawResponse && (() => {
+              const blocks = rawResponse.content || [];
+              const fetchCalls = blocks.filter(b => b.type === 'server_tool_use' && b.name === 'web_fetch').length;
+              const searchCalls = blocks.filter(b => b.type === 'server_tool_use' && b.name === 'web_search').length;
+              const fetchResults = blocks.filter(b => b.type === 'web_fetch_tool_result').length;
+              const searchResults = blocks.filter(b => b.type === 'web_search_tool_result').length;
+              return (
+                <div style={{ marginTop: 14, padding: "12px 16px", background: "rgba(0,204,255,0.04)", border: "1px solid rgba(0,204,255,0.18)", borderRadius: 10, fontSize: 11, color: "rgba(255,255,255,0.55)", fontFamily: "'Space Mono',monospace", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                  <span style={{ color: "#00ccff", letterSpacing: "0.06em" }}>🔧 DEBUG</span>
+                  <span>web_fetch: <b style={{ color: fetchCalls > 0 ? "#00ff88" : "#ff8844" }}>{fetchCalls}</b> calls / {fetchResults} results</span>
+                  <span>web_search: <b style={{ color: "#fff" }}>{searchCalls}</b> calls / {searchResults} results</span>
+                  <span>stop: <b style={{ color: "#fff" }}>{rawResponse.stop_reason}</b></span>
+                  <span>blocks: <b style={{ color: "#fff" }}>{blocks.length}</b></span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(rawResponse, null, 2))
+                        .then(() => alert("Debug info copied — paste into chat"))
+                        .catch(e => alert("Copy failed: " + e.message));
+                    }}
+                    style={{ marginLeft: "auto", background: "rgba(0,204,255,0.12)", color: "#00ccff", border: "1px solid rgba(0,204,255,0.35)", borderRadius: 6, padding: "5px 12px", fontSize: 11, fontFamily: "'Space Mono',monospace", cursor: "pointer" }}
+                  >📋 COPY FULL DEBUG INFO</button>
+                </div>
+              );
+            })()}
             <div style={{ textAlign: "center", marginTop: 24 }}>
               <button onClick={() => { setRawReport(null); setInput(""); setExpOvr(DEFAULT_EXPENSE_OVERRIDES); setModal(null); setTimeout(() => inputRef.current?.focus(), 100); }} style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)", padding: "10px 22px", borderRadius: 8, fontSize: 12, fontFamily: "'Space Mono',monospace", letterSpacing: "0.05em" }}>← ANALYZE ANOTHER PROPERTY</button>
             </div>
